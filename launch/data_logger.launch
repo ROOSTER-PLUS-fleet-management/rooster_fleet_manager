@@ -1,0 +1,4 @@
+<launch>
+  <!-- Run the Data Logger -->
+  <node name="logger" pkg="rooster_fleet_manager" type="data_logger.py" output="screen"/>
+</launch>

@@ -1,0 +1,10 @@
+<launch>
+  <arg name="use_tls" default="false" />
+  <node name="mqtt_pose_publisher" pkg="rooster_fleet_manager" type="mqtt_pose_publisher.py" output="screen"/>
+  <node name="mqtt_bridge" pkg="mqtt_bridge" type="mqtt_bridge_node.py" output="screen">
+    <rosparam command="delete" param="" />
+    <rosparam command="load" file="$(find rooster_fleet_manager)/config/sim_configs.yaml" />
+    <rosparam command="load" file="$(find rooster_fleet_manager)/config/mqtt_bridge_configs.yaml" />
+    <rosparam if="$(arg use_tls)" command="load" ns="mqtt" file="$(find mqtt_bridge)/config/tls_params.yaml" />
+  </node>
+</launch>
