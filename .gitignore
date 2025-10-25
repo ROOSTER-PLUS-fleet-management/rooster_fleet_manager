@@ -1,3 +1,4 @@
 .vscode/
 *.pyc
 doc
+data_logs/
