@@ -1,0 +1,13 @@
+data_logger:
+  logging_interval: 1.0
+  logs_folder_path: ''
+mqtt:
+  account:
+    password: ''
+    username: ''
+  client:
+    protocol: 4
+  connection:
+    host: localhost
+    keepalive: 60
+    port: 1883

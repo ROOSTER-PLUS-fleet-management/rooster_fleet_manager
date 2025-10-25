@@ -1,0 +1,21 @@
+bridge: # MQTT bridge configurations
+  # Example: Send pose data of 'rdg01' to MQTT broker
+  - factory: mqtt_bridge.bridge:RosToMqttBridge           # Forward from ROS to MQTT
+    msg_type: geometry_msgs.msg:Pose
+    topic_from: /rdg01/pose                               # ROS topic
+    topic_to: HSA/ros/rdg01/pose                          # MQTT topic
+  # Example: Receive pose data of 'rdg01' from MQTT broker
+  - factory: mqtt_bridge.bridge:MqttToRosBridge           # Forward MQTT to ROS
+    msg_type: geometry_msgs.msg:PoseWithCovarianceStamped
+    topic_from: unity/rdg01/pose                          # MQTT topic
+    topic_to: /unity/pose                                 # ROS topic
+  # Example: Send pose data of 'rdg02' to MQTT broker
+  - factory: mqtt_bridge.bridge:RosToMqttBridge           # Forward from ROS to MQTT
+    msg_type: geometry_msgs.msg:Pose
+    topic_from: /rdg02/pose                               # ROS topic
+    topic_to: HSA/ros/rdg02/pose                          # MQTT topic
+  # Example: Receive pose data of 'rdg02' from MQTT broker
+  - factory: mqtt_bridge.bridge:MqttToRosBridge           # Forward MQTT to ROS
+    msg_type: geometry_msgs.msg:PoseWithCovarianceStamped
+    topic_from: unity/rdg02/pose                          # MQTT topic
+    topic_to: /unity/pose                                 # ROS topic
