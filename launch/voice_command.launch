@@ -1,0 +1,3 @@
+<launch>
+  <node name="voice_command" pkg="rooster_fleet_manager" type="voice_command.py" output="screen"/>
+</launch>

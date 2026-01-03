@@ -4,6 +4,8 @@ import os           # Used to get base filename and file and directory handling
 import sys
 
 import rospy
+import rospkg
+from std_msgs.msg import Bool, String
 from PyQt4 import QtGui, QtCore
 
 from rooster_fleet_manager.srv import PlaceOrder, PlaceOrderRequest, GetPendingJobs, GetPendingJobsRequest, GetActiveJobs, GetActiveJobsRequest
@@ -11,6 +13,8 @@ from rooster_fleet_manager.msg import MexListInfo
 from ui import fleet_manager_ui
 from JobManager.Order import *
 from JobManager.Job import JobStatus, Job, JobPriority
+
+from num2word import word as n2w # for converting words to numbers
 
 #region ################################### TO DO LIST #####################################
 # DONE 1.  Perform simple call /job_manager/place_order service.
@@ -40,6 +44,10 @@ print(NODE_NAME + APPLICATION_TITLE + ". Version: "+VERSION)
 
 #region         ### PyQt GUI ###
 class GuiMainWindow(fleet_manager_ui.Ui_MainWindow, QtGui.QMainWindow):
+    # Signal used to forward voice error messages from ROS thread to the Qt GUI thread
+    voiceErrorSignal = QtCore.pyqtSignal(str)
+    # Signal used to forward voice command strings from ROS thread to the Qt GUI thread
+    voiceCommandSignal = QtCore.pyqtSignal(str)
     def __init__(self):
         """
         Initialise the ui widgets, items and varibles.
@@ -76,6 +84,26 @@ class GuiMainWindow(fleet_manager_ui.Ui_MainWindow, QtGui.QMainWindow):
         deleteItem.setIcon(deleteIcon)
         self.treeMenu.addAction(deleteItem)
 
+        #endregion
+
+        #region Initializations for voice command functionality
+        self.map_location_names_to_ids()
+        self.voice_command_state_pub = rospy.Publisher('/voice_command/state', Bool, queue_size=10)
+        self.pushButtonVoiceCommand.clicked.connect(self.toggle_voice_command)
+        self.voice_command_output_sub = rospy.Subscriber('/voice_command/output', String, self.execute_voice_command)
+        self.voice_command_error_sub = rospy.Subscriber('/voice_command/error', String, self.handle_voice_command_error)
+        # Connect ROS->GUI signal to handler so GUI updates happen in main thread
+        # Connect command signal to GUI handler
+        try:
+            self.voiceCommandSignal.connect(self._handle_voice_command)
+        except Exception:
+            pass
+        try:
+            self.voiceErrorSignal.connect(self._handle_voice_error)
+        except Exception:
+            # If signal/slot system unavailable for some PyQt builds, we'll still attempt
+            # to call the handler directly from the ROS callback (best-effort).
+            pass
         #endregion
 
     def open_context_menu(self):
@@ -180,6 +208,198 @@ class GuiMainWindow(fleet_manager_ui.Ui_MainWindow, QtGui.QMainWindow):
             # Show a notification informing the user that the order is incorrect.
             QtGui.QMessageBox.information(self, "Incorrect number of order arguments!", "Incorrect number of arguments. Supplied " + str(supplied_args) + " argument(s) (" + order_arguments + "). Expected " + str(expected_args) + " argument(s).")
 
+    def toggle_voice_command(self, checked):
+        """
+        Toggle the voice command listening state on or off.
+        """
+        # checked is True (Down) or False (Up)
+        self.voice_command_state_pub.publish(checked)
+        
+        if checked:
+            self.pushButtonVoiceCommand.setText("Listening...")
+            self.pushButtonVoiceCommand.setStyleSheet("color: red;")
+            # Change icon to Red
+        else:
+            self.pushButtonVoiceCommand.setText(" &Turn on voice command")
+            self.pushButtonVoiceCommand.setStyleSheet("color: black;")
+            # Change icon to Gray
+    
+    def execute_voice_command(self, msg):   
+        """ROS callback: forward the raw command string to the GUI thread via signal."""
+        try:
+            command_text = str(msg.data).lower()
+        except Exception:
+            try:
+                command_text = str(msg).lower()
+            except Exception:
+                command_text = ""
+
+        # Emit signal to GUI thread for handling
+        try:
+            self.voiceCommandSignal.emit(command_text)
+        except Exception:
+            # Fallback: directly call handler (may be invoked from ROS thread)
+            try:
+                self._handle_voice_command(command_text)
+            except Exception:
+                pass
+
+    def _handle_voice_command(self, command_text):
+        """Handle a voice command in the GUI thread (this contains the original logic).
+        `command_text` must be a lowercase string.
+        """
+        if not command_text:
+            return
+
+        command_text = str(command_text)
+        print(NODE_NAME + "Received voice command: " + command_text)
+
+        # Special command to place the order list.
+        if command_text == "place order":
+            self.place_order_list()
+            return
+
+        if command_text == "clear list":
+            self.clear_order_list()
+            return
+
+        if command_text == "stop listening":
+            # Ensure UI reflects stopped state
+            self.toggle_voice_command(False)
+            return
+
+        if command_text == "cancel order":
+            # remove first/top item if present
+            root = self.treeWidgetOrders.invisibleRootItem()
+            if root.childCount() > 0:
+                self.treeWidgetOrders.takeTopLevelItem(0)
+            return
+
+        # Parse the command text into keyword, priority and arguments.
+        command_parts = command_text.split(" ", 1) # Split into keyword and the rest (priority + arguments)
+        if len(command_parts) <= 2:
+            if len(command_parts) == 2:
+                order_keyword = command_parts[0].strip().upper()
+                # Find word "priority" in the rest of the command string.
+                if "priority" in command_parts[1]:
+                    priority_index = command_parts[1].find("priority")
+                    order_priority = command_parts[1][priority_index + len("priority"):].strip().split(" ", 1)[0]
+                    order_arguments = command_parts[1][:priority_index].strip()
+                else:
+                    order_priority = "LOW"   # Default priority if not specified.
+                    order_arguments = command_parts[1].strip()
+                order_priority = order_priority.upper()
+
+                if order_keyword == "TRANSPORT":
+                    # For transport, split arguments into two locations.
+                    args_split = order_arguments.split(" to ", 1)
+                    if len(args_split) == 2:
+                        order_arguments = args_split
+                        # Change location name to id
+                        for i, arg in enumerate(order_arguments):
+                            order_arguments[i] = self.location_mapping[arg]
+                        order_arguments = " ".join(order_arguments)
+                    else:
+                        print(NODE_NAME + "Invalid number of arguments for TRANSPORT command.")
+                        return
+                elif order_keyword == "MOVE": 
+                    # Change location name to id
+                    order_arguments = self.location_mapping[order_arguments]
+                else:
+                    if order_keyword == "EMPTY": # unload is replaced with empty in voice command
+                        order_keyword = "UNLOAD"
+                    # Change location name to id
+                    order_arguments = ""
+            elif len(command_parts) == 1: # for cases like LOAD and UNLOAD with no arguments
+                order_keyword = command_parts[0].strip().upper()
+                if order_keyword == "EMPTY": # unload is replaced with empty in voice command
+                    order_keyword = "UNLOAD"
+                order_arguments = ""
+                order_priority = "LOW"   # Default priority is not specified.
+                
+            # Check if the number of supplied arguments is correct
+            supplied_args = len(str(order_arguments).split())
+            expected_args = OrderTypeArgCount[str(order_keyword)].value
+
+            # If correct, add to order list.
+            if supplied_args == expected_args:
+                # Add the order to the order list.
+                order_item = QtGui.QTreeWidgetItem([order_keyword, order_priority, order_arguments])
+                self.treeWidgetOrders.addTopLevelItem(order_item)
+            else:
+                print(NODE_NAME + "Invalid number of arguments for " + order_keyword.upper() + " command.")
+        else:
+            print(NODE_NAME + "Invalid voice command format received.")
+
+    def map_location_names_to_ids(self):
+        """ Create dictionary that maps location names to their corresponding IDs. """
+        # Reads from locations.json file
+        location_mapping = {}
+        file_path = rospkg.RosPack().get_path("multi_robot_sim") +  "/scripts/JSONtoRosparam/locations.JSON"
+        with open(file_path) as json_file:
+            locations_data = json.load(json_file)
+            for loc in locations_data:
+                name = str(loc["name"])
+                name = name.replace("#", "") # remove hashtags
+                
+                # convert letters to numbers
+                words = []
+                for word in name.split():
+                    if word.isdigit():
+                        words.append(n2w(int(word)))
+                    else:
+                        words.append(word)
+                name = " ".join(words)
+                name = name.lower()
+
+                location_mapping[name] = loc["id"]
+                
+        self.location_mapping = location_mapping
+
+    def handle_voice_command_error(self, msg):
+        """ROS subscriber callback. Forward the error message to the GUI thread and
+        ensure the voice command button is disabled after the user sees the popup.
+        """
+        text = None
+        try:
+            # msg may be a std_msgs/String
+            text = str(msg.data)
+        except Exception:
+            try:
+                text = str(msg)
+            except Exception:
+                text = "Unknown voice command error"
+
+        # Emit signal to GUI thread if possible; otherwise call handler directly.
+        try:
+            self.voiceErrorSignal.emit(text)
+        except Exception:
+            # Fallback: try to call handler directly (may be unsafe from ROS thread)
+            try:
+                self._handle_voice_error(text)
+            except Exception:
+                pass
+
+    def _handle_voice_error(self, text):
+        """Runs in the GUI thread: show a small popup with the message and disable the voice button."""
+        # Small popup with the error message
+        QtGui.QMessageBox.warning(self, "Voice command error", text)
+
+        # Disable the voice command push button to prevent further interaction
+        try:
+            self.pushButtonVoiceCommand.setEnabled(False)
+            # Also reset checked state and text for clarity
+            try:
+                self.pushButtonVoiceCommand.setChecked(False)
+            except Exception:
+                pass
+            try:
+                self.pushButtonVoiceCommand.setText(" &Turn on voice command")
+            except Exception:
+                pass
+        except Exception:
+            # ignore GUI errors during shutdown
+            pass
 
     def close_application(self):
         """Prompts the user if they are sure they which to quit the application before quitting."""

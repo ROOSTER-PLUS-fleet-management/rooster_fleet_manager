@@ -112,6 +112,14 @@ class Ui_MainWindow(object):
         self.horizontalLayout_4.addWidget(self.comboBoxPriority)
         spacerItem1 = QtGui.QSpacerItem(40, 20, QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum)
         self.horizontalLayout_4.addItem(spacerItem1)
+
+        self.pushButtonVoiceCommand = QtGui.QPushButton(self.tabOrders)
+        self.pushButtonVoiceCommand.setCheckable(True)
+        self.pushButtonVoiceCommand.setChecked(False)
+        self.pushButtonVoiceCommand.setMinimumSize(QtCore.QSize(300, 0))
+        self.pushButtonVoiceCommand.setObjectName(_fromUtf8("pushButtonVoiceCommand"))
+        self.horizontalLayout_4.addWidget(self.pushButtonVoiceCommand)
+
         self.horizontalLayoutOrderBase.addLayout(self.horizontalLayout_4)
         self.verticalLayout_3.addLayout(self.horizontalLayoutOrderBase)
         self.horizontalLayoutOrderArguments = QtGui.QHBoxLayout()
@@ -141,6 +149,7 @@ class Ui_MainWindow(object):
         self.verticalLayout_3.addLayout(self.horizontalLayoutAddOrder)
         spacerItem5 = QtGui.QSpacerItem(20, 10, QtGui.QSizePolicy.Minimum, QtGui.QSizePolicy.Fixed)
         self.verticalLayout_3.addItem(spacerItem5)
+
         self.labelArguments_2 = QtGui.QLabel(self.tabOrders)
         font = QtGui.QFont()
         font.setPointSize(12)
@@ -237,6 +246,8 @@ class Ui_MainWindow(object):
         self.labelArguments.setText(_translate("MainWindow", "Order arguments (arguments must be seperated with spaces):", None))
         self.pushButtonAddOrder.setStatusTip(_translate("MainWindow", "Add the above defined order to the order list below.", None))
         self.pushButtonAddOrder.setText(_translate("MainWindow", " &Add order to Order list", None))
+        self.pushButtonVoiceCommand.setStatusTip(_translate("MainWindow", "Toggle voice command", None))
+        self.pushButtonVoiceCommand.setText(_translate("MainWindow", " &Turn on voice command", None))
         self.labelArguments_2.setText(_translate("MainWindow", "Order list", None))
         self.treeWidgetOrders.headerItem().setText(0, _translate("MainWindow", "Keyword", None))
         self.treeWidgetOrders.headerItem().setText(1, _translate("MainWindow", "Priority", None))

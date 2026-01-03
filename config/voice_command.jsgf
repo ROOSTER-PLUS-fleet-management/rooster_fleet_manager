@@ -1,0 +1,24 @@
+#JSGF V1.0;
+
+grammar robot_cmd;
+
+/* --- MAIN PUBLIC RULE --- */
+public <command> = <complex_command> | <simple_command>;
+
+/* --- SIMPLE COMMANDS --- */
+<simple_command> = place order | stop listening | clear list | cancel order;
+
+/* --- COMPLEX COMMANDS (Action + Location + Optional Priority) --- */
+<complex_command> = (<move_action> | <handling_action> | <transport_action>) [ <priority_flag> ];
+
+// --- ACTION RULES --- */
+<move_action> = (move) <location>;
+<handling_action> = (load | empty);
+<transport_action> = (transport) <location> to <location>;
+
+// --- LOCATIONS --- */
+// Machines and Places are mixed here as single tokens
+<location> = drop off | machine five | machine four | machine one | machine seven | machine six | machine three | machine two | pick up;
+
+// --- PRIORITY --- */
+<priority_flag> = priority (high | medium | low);

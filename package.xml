@@ -57,6 +57,12 @@
   <build_depend>std_msgs</build_depend>
   <build_export_depend>std_msgs</build_export_depend>
   <exec_depend>std_msgs</exec_depend>
+  <build_depend>num2word</build_depend>
+  <build_export_depend>num2word</build_export_depend>
+  <exec_depend>num2word</exec_depend>
+  <build_depend>pocketsphinx</build_depend>
+  <build_export_depend>pocketsphinx</build_export_depend>
+  <exec_depend>pocketsphinx</exec_depend>
 
 ​
 
